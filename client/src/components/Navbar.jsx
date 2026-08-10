@@ -5,8 +5,8 @@ export default function Navbar() {
     <div>
       <nav className="flex justify-between items-center mb-6">
         <NavLink to="/">
-        <div  class="bg-sky-300 ...">
-          <img class="object-fill h-30 w-60 " src="https://i.ibb.co/0cMzXsp/png-clipart-human-resource-management-system-time-and-attendance-service-employees-international-uni.png" />
+        <div  className="bg-sky-300 ...">
+          <img className="object-fill h-30 w-60 " src="https://i.ibb.co/0cMzXsp/png-clipart-human-resource-management-system-time-and-attendance-service-employees-international-uni.png" />
         </div>
         </NavLink>
 
