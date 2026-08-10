@@ -1,1 +1,20 @@
+name: CI/CD Pipeline
 
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Display Repository Files
+        run: ls -la
+
+      - name: Verify Docker Installation
+        run: docker --version
