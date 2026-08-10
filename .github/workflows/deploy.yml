@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: MERN CI/CD Pipeline
 
 on:
   push:
@@ -6,15 +6,143 @@ on:
       - main
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Source Code
+
+      ####################################################
+      # Checkout Repository
+      ####################################################
+
+      - name: Checkout Repository
         uses: actions/checkout@v4
+
+      ####################################################
+      # Display Repository Files
+      ####################################################
 
       - name: Display Repository Files
         run: ls -la
 
-      - name: Verify Docker Installation
-        run: docker --version
+      ###################################################
+      # Setup Node.js
+      ###################################################
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      ####################################################
+      # Verify Node & NPM
+      ####################################################
+
+      - name: Verify Node & NPM
+        run: |
+          node -v
+          npm -v
+
+      ####################################################
+      # Install Frontend Dependencies
+      ####################################################
+
+      - name: Install Frontend Dependencies
+        working-directory: client
+        run: npm install
+
+      ####################################################
+      # Build Frontend Docker Image
+      ####################################################
+
+      - name: Build Frontend Docker Image
+        run: |
+          docker build \
+            -t shaikrizwanbasha1018/employee-client:latest \
+            ./client
+
+      ####################################################
+      # Install Backend Dependencies
+      ####################################################
+
+      - name: Install Backend Dependencies
+        working-directory: server
+        run: npm install
+
+      ####################################################
+      # Build Backend Docker Image
+      ####################################################
+
+      - name: Build Backend Docker Image
+        run: |
+          docker build \
+            -t shaikrizwanbasha1018/employee-server:latest \
+            ./server
+
+      ####################################################
+      # Login to DockerHub
+      ####################################################
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      ####################################################
+      # Push Images
+      ####################################################
+
+      - name: Push Frontend Image
+        run: docker push shaikrizwanbasha1018/employee-client:latest
+
+      - name: Push Backend Image
+        run: docker push shaikrizwanbasha1018/employee-server:latest
+
+      ####################################################
+      # Deploy to EC2
+      ####################################################
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+
+            echo "Pulling latest Docker images..."
+
+            docker pull shaikrizwanbasha1018/employee-client:latest
+            docker pull shaikrizwanbasha1018/employee-server:latest
+
+            echo "Stopping old containers..."
+
+            docker stop employee-client || true
+            docker stop employee-server || true
+
+            docker rm employee-client || true
+            docker rm employee-server || true
+
+            echo "Starting Backend..."
+
+            docker run -d \
+              --name employee-server \
+              --restart unless-stopped \
+              --env-file ~/Employee-Management-System-MERN-Full-Stack-Web-Application/server/.env \
+              -p 5050:5050 \
+              shaikrizwanbasha1018/employee-server:latest
+
+            echo "Starting Frontend..."
+
+            docker run -d \
+              --name employee-client \
+              --restart unless-stopped \
+              -p 5173:5173 \
+              shaikrizwanbasha1018/employee-client:latest
+
+            echo "Removing unused Docker images..."
+
+            docker image prune -f
+
+            echo "Deployment Completed Successfully!"
