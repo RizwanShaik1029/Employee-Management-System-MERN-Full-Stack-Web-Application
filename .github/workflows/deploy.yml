@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: MERN CI/CD Pipeline
 
 on:
   push:
@@ -6,15 +6,122 @@ on:
       - main
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Source Code
+
+      # Checkout Repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Display Files
       - name: Display Repository Files
         run: ls -la
 
-      - name: Verify Docker Installation
-        run: docker --version
+      # Setup Node
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Verify Versions
+      - name: Verify Node & NPM
+        run: |
+          node -v
+          npm -v
+
+      ####################################################
+      # Build Frontend
+      ####################################################
+
+      - name: Install Frontend Dependencies
+        working-directory: client
+        run: npm install
+
+      - name: Build Frontend Docker Image
+        run: |
+          docker build \
+          -t shaikrizwanbasha1018/employee-client:latest \
+          ./client
+
+      ####################################################
+      # Build Backend
+      ####################################################
+
+      - name: Install Backend Dependencies
+        working-directory: server
+        run: npm install
+
+      - name: Build Backend Docker Image
+        run: |
+          docker build \
+          -t shaikrizwanbasha1018/employee-server:latest \
+          ./server
+
+      ####################################################
+      # DockerHub Login
+      ####################################################
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      ####################################################
+      # Push Images
+      ####################################################
+
+      - name: Push Frontend Image
+        run: docker push shaikrizwanbasha1018/employee-client:latest
+
+      - name: Push Backend Image
+        run: docker push shaikrizwanbasha1018/employee-server:latest
+
+      ####################################################
+      # Deploy to EC2
+      ####################################################
+
+      - name: Deploy Application to EC2
+        uses: appleboy/ssh-action@v1.0.3
+
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+
+          script: |
+
+            echo "Pull Latest Images"
+
+            docker pull shaikrizwanbasha1018/employee-client:latest
+            docker pull shaikrizwanbasha1018/employee-server:latest
+
+            echo "Stop Old Containers"
+
+            docker stop employee-client || true
+            docker stop employee-server || true
+
+            docker rm employee-client || true
+            docker rm employee-server || true
+
+            echo "Run Backend"
+
+            docker run -d \
+              --name employee-server \
+              -p 5050:5050 \
+              shaikrizwanbasha1018/employee-server:latest
+
+            echo "Run Frontend"
+
+            docker run -d \
+              --name employee-client \
+              -p 5173:5173 \
+              shaikrizwanbasha1018/employee-client:latest
+
+            echo "Cleanup"
+
+            docker image prune -f
+
+            echo "Deployment Completed Successfully"
